@@ -11,10 +11,7 @@ import java.io.File;
 
 /**
  * Main Application Entry Point.
- * UPDATED:
- * - Links AppUI and MainController for Real-Time Logging.
- * - Implements Decoy Protocol Handling.
- * - Initializes the "Boot Sequence" visual effect.
+ * Coordinates views, events, and steganography routes.
  */
 public class App {
 
@@ -30,9 +27,8 @@ public class App {
 
         // 3. Visual Boot Sequence
         view.log("BOOT SEQUENCE INITIATED...");
-        view.log("LOADING CORE MODULES: AES-256-GCM, PBKDF2, LSB-ENGINE");
-        view.log("CHECKING SYSTEM INTEGRITY... [OK]");
-        view.log("SYSTEM READY. WAITING FOR COMMAND.");
+        view.log("LOADING CORE MODULES: AES-GCM, CHACHA20, CBC, ZERO-WIDTH, LSB-ENGINE");
+        view.log("SYSTEM READY. LOAD A CARRIER FILE TO BEGIN.");
 
         // 4. Bind Events & Show
         bindEvents();
@@ -59,7 +55,8 @@ public class App {
             File dest = controller.showSaveDialog(view, "encrypted_artifact", Config.DESC_ENCRYPTED, Config.EXT_ENCRYPTED);
             if (dest == null) return;
 
-            executeTask(() -> controller.encryptFile(src, dest, view.getPassword()));
+            String algo = view.getSelectedCryptoAlgo();
+            executeTask(() -> controller.encryptFile(src, dest, view.getPassword(), algo));
         });
 
         view.getDecryptBtn().addActionListener(e -> {
@@ -76,7 +73,7 @@ public class App {
         });
 
         // ==================================================================
-        // STEGANOGRAPHY HANDLERS (With Decoy Support)
+        // STEGANOGRAPHY HANDLERS (With Decoy & Scatter Options)
         // ==================================================================
 
         // --- IMAGE ---
@@ -90,6 +87,10 @@ public class App {
         // --- VIDEO ---
         view.getHideVidBtn().addActionListener(e -> handleStegoEmbed("video", Config.EXT_VIDEOS));
         view.getExtractVidBtn().addActionListener(e -> handleStegoExtract("video", Config.EXT_VIDEOS));
+
+        // --- TEXT ---
+        view.getHideTxtBtn().addActionListener(e -> handleStegoEmbed("text", new String[]{"txt"}));
+        view.getExtractTxtBtn().addActionListener(e -> handleStegoExtract("text", new String[]{"txt"}));
     }
 
     // ==================================================================
@@ -113,18 +114,19 @@ public class App {
         File dest = controller.showSaveDialog(view, "stego_" + type, type.toUpperCase(), defaultExt);
         if (dest == null) return;
 
-        // Decoy Check
+        // Decoy Check, layout mode & chosen cryptographic algorithm
         boolean useDecoy = view.isDecoyEnabled();
+        boolean useScatter = view.isScatterEnabled();
+        String algo = view.getSelectedCryptoAlgo();
         String pass = view.getPassword();
         String msg = view.getMessage();
 
         executeTask(() -> {
             switch (type) {
-                // Image supports Decoy flag
-                case "image" -> controller.embedInImage(src, dest, msg, pass, useDecoy);
-                // Audio/Video currently standard (can be upgraded later)
-                case "audio" -> controller.embedInAudio(src, dest, msg, pass);
-                case "video" -> controller.embedInVideo(src, dest, msg, pass);
+                case "image" -> controller.embedInImage(src, dest, msg, pass, useDecoy, useScatter, algo);
+                case "audio" -> controller.embedInAudio(src, dest, msg, pass, useDecoy, useScatter, algo);
+                case "video" -> controller.embedInVideo(src, dest, msg, pass, algo);
+                case "text" -> controller.embedInText(src, dest, msg, pass, useDecoy, algo);
             }
         });
     }
@@ -143,6 +145,7 @@ public class App {
                 case "image" -> result = controller.extractFromImage(src, pass);
                 case "audio" -> result = controller.extractFromAudio(src, pass);
                 case "video" -> result = controller.extractFromVideo(src, pass);
+                case "text" -> result = controller.extractFromText(src, pass);
             }
 
             if (result != null) {

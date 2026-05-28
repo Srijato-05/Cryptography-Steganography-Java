@@ -19,7 +19,7 @@ public class Config {
 
     public static final Color DARK_PURPLE = new Color(15, 15, 25);
     public static final Color TERMINAL_BG = new Color(10, 10, 10); // Log Background
-    public static final Color GLASS_BG = new Color(30, 35, 50, 200);
+    public static final Color GLASS_BG = new Color(20, 22, 33, 110);
     public static final Color BORDER_GLOW = new Color(0, 255, 255, 100);
     public static final Color TEXT_PRIMARY = new Color(240, 240, 240);
 

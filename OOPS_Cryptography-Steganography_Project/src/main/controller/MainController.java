@@ -4,6 +4,7 @@ import src.main.encryption.Decryption;
 import src.main.encryption.Encryption;
 import src.main.steganography.AudioSteganography;
 import src.main.steganography.ImageSteganography;
+import src.main.steganography.TextSteganography;
 import src.main.steganography.VideoSteganography;
 import src.main.ui.AppUI;
 import src.main.utils.ExceptionHandler;
@@ -15,10 +16,7 @@ import java.io.File;
 
 /**
  * Main Controller.
- * COORDINATES CRYPTOGRAPHY & SCATTER STEGANOGRAPHY.
- * * UPDATES:
- * - Passes 'Auth Key' to Image/Audio engines to seed the PRNG Scatter.
- * - Manages Decoy logic and Real-time Terminal Logging.
+ * Coordinates Cryptography and Steganography Operations.
  */
 public class MainController {
 
@@ -28,6 +26,7 @@ public class MainController {
     private final ImageSteganography imageStego;
     private final AudioSteganography audioStego;
     private final VideoSteganography videoStego;
+    private final TextSteganography textStego;
 
     private File lastSelectedDirectory;
 
@@ -38,21 +37,22 @@ public class MainController {
         this.imageStego = new ImageSteganography();
         this.audioStego = new AudioSteganography();
         this.videoStego = new VideoSteganography();
+        this.textStego = new TextSteganography();
 
         this.lastSelectedDirectory = new File(System.getProperty("user.home"));
     }
 
     // ==================================================================================
-    // CRYPTOGRAPHY OPERATIONS (AES-256-GCM)
+    // STANDALONE CRYPTOGRAPHY OPERATIONS
     // ==================================================================================
 
-    public void encryptFile(File source, File destination, String password) {
+    public void encryptFile(File source, File destination, String password, String cryptoAlgo) {
         try {
-            view.log("INITIATING AES-256-GCM ENCRYPTION PROTOCOL...");
+            view.log("INITIATING " + cryptoAlgo + " ENCRYPTION PROTOCOL...");
             view.log("SOURCE: " + source.getName() + " | SIZE: " + source.length() + " BYTES");
 
             long startTime = System.currentTimeMillis();
-            encryption.encryptFile(source, destination, password);
+            encryption.encryptFile(source, destination, password, cryptoAlgo);
             long duration = System.currentTimeMillis() - startTime;
 
             view.log("ENCRYPTION COMPLETE IN " + duration + "MS.");
@@ -68,7 +68,7 @@ public class MainController {
     public void decryptFile(File source, File destination, String password) {
         try {
             view.log("ATTEMPTING DECRYPTION ON: " + source.getName());
-            view.log("VERIFYING AUTH KEY INTEGRITY...");
+            view.log("VERIFYING CRYPTO HEADERS...");
 
             long startTime = System.currentTimeMillis();
             decryption.decryptFile(source, destination, password);
@@ -83,107 +83,106 @@ public class MainController {
     }
 
     // ==================================================================================
-    // STEGANOGRAPHY OPERATIONS (Scatter Mode Enabled)
+    // STEGANOGRAPHY INJECTION
     // ==================================================================================
 
-    public void embedInImage(File src, File dest, String msg, String pass, boolean useDecoy) {
+    public void embedInImage(File src, File dest, String msg, String pass, boolean useDecoy, boolean useScatter, String cryptoAlgo) {
         try {
             view.log("ANALYZING IMAGE CARRIER: " + src.getName());
 
-            String payloadToHide;
-            if (useDecoy) {
-                view.log("WARNING: DECOY PROTOCOL ACTIVE.");
-                view.log("GENERATING DUAL-LAYER PAYLOAD STRUCTURE...");
-                payloadToHide = "REAL_LAYER::" + encryption.encryptMessage(msg, pass);
-            } else {
-                view.log("ENCRYPTING PAYLOAD (AES-256)...");
-                payloadToHide = encryption.encryptMessage(msg, pass);
-            }
+            String payloadToHide = preparePayload(msg, pass, useDecoy, cryptoAlgo);
+            if (payloadToHide == null) return;
 
-            view.log("INITIALIZING PRNG WITH AUTH KEY SEED...");
-            view.log("SCATTERING PAYLOAD ACROSS PIXEL DATA...");
-
-            // PASS PASSWORD HERE FOR SCATTER LOGIC
-            imageStego.embedMessage(src, dest, payloadToHide, pass);
+            view.log("INJECTING VIA IMAGE LSB (SCATTER=" + useScatter + ")...");
+            imageStego.embedMessage(src, dest, payloadToHide, pass, useDecoy, useScatter);
 
             view.log("STEGANOGRAPHY COMPLETE. OUTPUT: " + dest.getName());
-            JOptionPane.showMessageDialog(view, "Secure Injection (Scatter) Complete.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
+            JOptionPane.showMessageDialog(view, "Secure Injection (Image) Complete.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
             view.log("ERROR: IMAGE INJECTION FAILED.");
             ExceptionHandler.handle(e, "Embed Error");
         }
     }
 
-    public String extractFromImage(File src, String pass) {
+    public void embedInAudio(File src, File dest, String msg, String pass, boolean useDecoy, boolean useScatter, String cryptoAlgo) {
         try {
-            view.log("RECONSTRUCTING PRNG SEQUENCE FROM AUTH KEY...");
-            view.log("SCANNING SCATTERED PIXELS...");
+            view.log("ANALYZING AUDIO WAVEFORM: " + src.getName());
 
-            // PASS PASSWORD HERE FOR SCATTER LOGIC
-            String securePayload = imageStego.extractMessage(src, pass);
+            String payloadToHide = preparePayload(msg, pass, useDecoy, cryptoAlgo);
+            if (payloadToHide == null) return;
 
-            view.log("ENCRYPTED PAYLOAD FOUND. ATTEMPTING DECRYPTION...");
+            view.log("INJECTING VIA AUDIO LSB (SCATTER=" + useScatter + ")...");
+            audioStego.embedMessage(src, dest, payloadToHide, pass, useDecoy, useScatter);
 
-            if (securePayload.startsWith("REAL_LAYER::")) {
-                securePayload = securePayload.replace("REAL_LAYER::", "");
-                view.log("NOTICE: DECOY LAYER BYPASSED. ACCESSING CORE.");
-            }
-
-            return decryption.decryptMessage(securePayload, pass);
-        } catch (Exception e) {
-            view.log("ERROR: EXTRACTION FAILED (WRONG KEY OR NO DATA).");
-            return null;
-        }
-    }
-
-    public void embedInAudio(File src, File dest, String msg, String pass) {
-        try {
-            view.log("ANALYZING AUDIO WAVEFORM...");
-            String securePayload = encryption.encryptMessage(msg, pass);
-
-            view.log("INITIALIZING PRNG SCATTER ENGINE...");
-            view.log("MODIFYING RANDOM PCM SAMPLES...");
-
-            // PASS PASSWORD HERE FOR SCATTER LOGIC
-            audioStego.embedMessage(src, dest, securePayload, pass);
-
-            view.log("SUCCESS: AUDIO CARRIER GENERATED.");
-            JOptionPane.showMessageDialog(view, "Audio Injection (Scatter) Complete.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
+            view.log("STEGANOGRAPHY COMPLETE. OUTPUT: " + dest.getName());
+            JOptionPane.showMessageDialog(view, "Secure Injection (Audio) Complete.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
             view.log("ERROR: AUDIO INJECTION FAILED.");
             ExceptionHandler.handle(e, "Embed Error");
         }
     }
 
-    public String extractFromAudio(File src, String pass) {
+    public void embedInVideo(File src, File dest, String msg, String pass, String cryptoAlgo) {
         try {
-            view.log("RECONSTRUCTING SCATTER PATTERN...");
+            view.log("ANALYZING VIDEO CONTAINER: " + src.getName());
 
-            // PASS PASSWORD HERE FOR SCATTER LOGIC
-            String securePayload = audioStego.extractMessage(src, pass);
+            view.log("ENCRYPTING PAYLOAD (" + cryptoAlgo + ")...");
+            String securePayload = encryption.encryptMessage(msg, pass, cryptoAlgo);
 
-            view.log("DECRYPTING STREAM...");
-            return decryption.decryptMessage(securePayload, pass);
+            view.log("APPENDING DATA TO VIDEO EOF...");
+            videoStego.embedMessage(src, dest, securePayload);
+
+            view.log("STEGANOGRAPHY COMPLETE. OUTPUT: " + dest.getName());
+            JOptionPane.showMessageDialog(view, "Secure Injection (Video EOF) Complete.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
-            view.log("ERROR: AUDIO EXTRACTION FAILED.");
+            view.log("ERROR: VIDEO INJECTION FAILED.");
+            ExceptionHandler.handle(e, "Embed Error");
+        }
+    }
+
+    public void embedInText(File src, File dest, String msg, String pass, boolean useDecoy, String cryptoAlgo) {
+        try {
+            view.log("ANALYZING TEXT DOCUMENT: " + src.getName());
+
+            String payloadToHide = preparePayload(msg, pass, useDecoy, cryptoAlgo);
+            if (payloadToHide == null) return;
+
+            view.log("INJECTING PAYLOAD VIA ZERO-WIDTH MODULATION...");
+            textStego.embedMessage(src, dest, payloadToHide);
+
+            view.log("STEGANOGRAPHY COMPLETE. OUTPUT: " + dest.getName());
+            JOptionPane.showMessageDialog(view, "Secure Injection (Text Zero-Width) Complete.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            view.log("ERROR: TEXT INJECTION FAILED.");
+            ExceptionHandler.handle(e, "Embed Error");
+        }
+    }
+
+    // ==================================================================================
+    // STEGANOGRAPHY EXTRACTION
+    // ==================================================================================
+
+    public String extractFromImage(File src, String pass) {
+        try {
+            view.log("SCANNING SCATTERED/SEQUENTIAL PIXELS...");
+            String securePayload = imageStego.extractMessage(src, pass);
+            view.log("DECRYPTING EXTRACTED STREAM...");
+            return decryptDualLayer(securePayload, pass);
+        } catch (Exception e) {
+            view.log("ERROR: EXTRACTION FAILED (WRONG KEY OR NO DATA).");
             return null;
         }
     }
 
-    public void embedInVideo(File src, File dest, String msg, String pass) {
+    public String extractFromAudio(File src, String pass) {
         try {
-            view.log("ANALYZING VIDEO CONTAINER...");
-            // Video does not support scatter, so we just encrypt the payload
-            String securePayload = encryption.encryptMessage(msg, pass);
-
-            view.log("APPENDING ENCRYPTED DATA TO EOF...");
-            videoStego.embedMessage(src, dest, securePayload);
-
-            view.log("SUCCESS: VIDEO CARRIER GENERATED.");
-            JOptionPane.showMessageDialog(view, "Video Injection Complete.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
+            view.log("SCANNING SCATTERED/SEQUENTIAL PCM SAMPLES...");
+            String securePayload = audioStego.extractMessage(src, pass);
+            view.log("DECRYPTING EXTRACTED STREAM...");
+            return decryptDualLayer(securePayload, pass);
         } catch (Exception e) {
-            view.log("ERROR: VIDEO INJECTION FAILED.");
-            ExceptionHandler.handle(e, "Embed Error");
+            view.log("ERROR: AUDIO EXTRACTION FAILED.");
+            return null;
         }
     }
 
@@ -199,8 +198,83 @@ public class MainController {
         }
     }
 
+    public String extractFromText(File src, String pass) {
+        try {
+            view.log("SCANNING ZERO-WIDTH CHARACTERS...");
+            String securePayload = textStego.extractMessage(src);
+            view.log("DECRYPTING PAYLOAD...");
+            return decryptDualLayer(securePayload, pass);
+        } catch (Exception e) {
+            view.log("ERROR: TEXT EXTRACTION FAILED.");
+            return null;
+        }
+    }
+
     // ==================================================================================
-    // FILE DIALOGS (With MIME-Type Masking)
+    // DECOY & DECRYPTION UTILITIES
+    // ==================================================================================
+
+    private String preparePayload(String msg, String pass, boolean useDecoy, String cryptoAlgo) throws Exception {
+        if (useDecoy) {
+            view.log("WARNING: DECOY PROTOCOL ACTIVE.");
+
+            String decoyPass = JOptionPane.showInputDialog(view,
+                "ENTER DECOY PASSPHRASE (DIFFERENT FROM AUTH KEY):",
+                "DECOY CONFIGURATION", JOptionPane.QUESTION_MESSAGE);
+            if (decoyPass == null || decoyPass.isEmpty() || decoyPass.equals(pass)) {
+                view.log("DECOY ABORTED: INVALID OR MATCHING DECOY KEY.");
+                return null;
+            }
+
+            String decoyMsg = JOptionPane.showInputDialog(view,
+                "ENTER DECOY PAYLOAD (HARMLESS MESSAGE):",
+                "DECOY CONFIGURATION", JOptionPane.QUESTION_MESSAGE);
+            if (decoyMsg == null || decoyMsg.isEmpty()) {
+                view.log("DECOY ABORTED: DECOY MESSAGE IS EMPTY.");
+                return null;
+            }
+
+            view.log("GENERATING DUAL-LAYER PAYLOAD STRUCTURE...");
+            String realEnc = encryption.encryptMessage("REAL_LAYER::" + msg, pass, cryptoAlgo);
+            String decoyEnc = encryption.encryptMessage("DECOY_LAYER::" + decoyMsg, decoyPass, cryptoAlgo);
+            return decoyEnc + "::" + realEnc;
+        } else {
+            view.log("ENCRYPTING PAYLOAD (" + cryptoAlgo + ")...");
+            return encryption.encryptMessage(msg, pass, cryptoAlgo);
+        }
+    }
+
+    private String decryptDualLayer(String securePayload, String pass) throws Exception {
+        if (securePayload.contains("::")) {
+            String[] parts = securePayload.split("::");
+            if (parts.length == 2) {
+                // Try decoy first
+                try {
+                    String decrypted = decryption.decryptMessage(parts[0], pass);
+                    if (decrypted.startsWith("DECOY_LAYER::")) {
+                        view.log("NOTICE: DECOY PASSWORD USED. ACCESSING HARMLESS LAYER.");
+                        return decrypted.replace("DECOY_LAYER::", "");
+                    }
+                } catch (Exception ignored) {
+                }
+                // Try real next
+                try {
+                    String decrypted = decryption.decryptMessage(parts[1], pass);
+                    if (decrypted.startsWith("REAL_LAYER::")) {
+                        view.log("NOTICE: REAL KEY VERIFIED. ACCESSING SENSITIVE CORE.");
+                        return decrypted.replace("REAL_LAYER::", "");
+                    }
+                } catch (Exception e) {
+                    view.log("ERROR: DECRYPTION FAILED FOR BOTH LAYERS.");
+                    throw e;
+                }
+            }
+        }
+        return decryption.decryptMessage(securePayload, pass);
+    }
+
+    // ==================================================================================
+    // FILE DIALOGS
     // ==================================================================================
 
     public File showOpenDialog(Component parent, String title, String[] extensions) {
@@ -234,13 +308,10 @@ public class MainController {
             File selected = chooser.getSelectedFile();
             lastSelectedDirectory = selected.getParentFile();
 
-            // MIME-MASKING LOGIC
             String name = selected.getName();
             if (!extension.isEmpty() && !name.contains(".")) {
                 selected = new File(selected.getAbsolutePath() + "." + extension);
                 view.log("AUTO-APPENDING EXTENSION: ." + extension);
-            } else if (name.contains(".") && !name.toLowerCase().endsWith("." + extension)) {
-                view.log("WARNING: CUSTOM EXTENSION DETECTED (MIME MASKING ACTIVE).");
             }
 
             view.log("TARGET SET: " + selected.getName());
