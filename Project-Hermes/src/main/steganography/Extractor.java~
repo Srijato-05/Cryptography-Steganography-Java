@@ -1,0 +1,69 @@
+package main.steganography;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.awt.image.WritableRaster;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+
+public class Extractor {
+
+    /**
+     * Extracts a hidden string from a Stego-Image.
+     *
+     * @param sourceFile The PNG file containing the hidden data.
+     * @return The extracted string.
+     * @throws Exception If no data is found or image is invalid.
+     */
+    public String extractMessage(File sourceFile) throws Exception {
+        if (sourceFile == null || !sourceFile.exists()) {
+            throw new Exception("Source image not found.");
+        }
+
+        // 1. Load Image
+        BufferedImage image = ImageIO.read(sourceFile);
+        if (image == null) {
+            throw new Exception("Failed to load image.");
+        }
+
+        // 2. Normalize Format (CRITICAL)
+        // Must match the type used in Embedder to align byte arrays.
+        BufferedImage userSpaceImage = new BufferedImage(
+                image.getWidth(), image.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
+        userSpaceImage.getGraphics().drawImage(image, 0, 0, null);
+
+        // 3. Access Raw Data
+        WritableRaster raster = userSpaceImage.getRaster();
+        DataBufferByte buffer = (DataBufferByte) raster.getDataBuffer();
+        byte[] imageBytes = buffer.getData();
+
+        // 4. Extract Length Header (First 32 bits)
+        int length = 0;
+        int offset = 0;
+        for (int i = 0; i < 32; i++) {
+            int bit = imageBytes[offset] & 1;
+            length = (length << 1) | bit;
+            offset++;
+        }
+
+        // 5. Validate Length
+        if (length <= 0 || length * 8 > (imageBytes.length - 32)) {
+            throw new Exception("No valid hidden message detected. (Invalid Length Header)");
+        }
+
+        // 6. Extract Message Bytes
+        byte[] messageBytes = new byte[length];
+        for (int b = 0; b < length; b++) {
+            int value = 0;
+            for (int i = 0; i < 8; i++) {
+                int bit = imageBytes[offset] & 1;
+                value = (value << 1) | bit;
+                offset++;
+            }
+            messageBytes[b] = (byte) value;
+        }
+
+        return new String(messageBytes, StandardCharsets.UTF_8);
+    }
+}

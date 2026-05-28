@@ -1,0 +1,188 @@
+package main.steganography;
+
+public class SecureStegoApp {
+    public static void main(String[] args) {
+        try {
+            System.out.println("Welcome to SecureStego - Secure Data Transmission Application");
+
+            // Authentication
+            UserAuthenticator authenticator = new UserAuthenticator();
+            if (!authenticator.login("user", "password")) {
+                System.out.println("Login Failed. Exiting...");
+                return;
+            }
+
+            // Encryption Example (AES)
+            Encryptor encryptor = new AESAlgorithm();
+            String message = "Confidential Data";
+            String key = "1234567890123456"; // 16-byte AES key
+            byte[] encryptedData = encryptor.encrypt(message.getBytes(), key);
+            System.out.println("Encrypted Data: " + new String(encryptedData));
+
+            // Steganography Example (Image, Audio, Video)
+            Steganographer imageStego = new LSBImageSteganography();
+            imageStego.hideData("input.png", "output.png", encryptedData);
+            byte[] extractedImageData = imageStego.extractData("output.png");
+
+            Steganographer audioStego = new LSBAudioSteganography();
+            audioStego.hideData("input.wav", "output.wav", encryptedData);
+            byte[] extractedAudioData = audioStego.extractData("output.wav");
+
+            Steganographer videoStego = new LSBVideoSteganography();
+            videoStego.hideData("input.mp4", "output.mp4", encryptedData);
+            byte[] extractedVideoData = videoStego.extractData("output.mp4");
+
+            // Decrypt Extracted Data
+            String decryptedMessage = new String(encryptor.decrypt(extractedImageData, key));
+            System.out.println("Decrypted Message: " + decryptedMessage);
+
+        } catch (Exception e) {
+            ExceptionHandler.handle(e);
+        }
+    }
+}
+
+// Encryption Interface
+package app.encryption;
+
+public interface Encryptor {
+    byte[] encrypt(byte[] data, String key) throws Exception;
+    byte[] decrypt(byte[] data, String key) throws Exception;
+}
+
+// AES Encryption Implementation
+package app.encryption;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+
+public class AESAlgorithm implements Encryptor {
+    private static final String ALGORITHM = "AES";
+
+    @Override
+    public byte[] encrypt(byte[] data, String key) throws Exception {
+        Cipher cipher = Cipher.getInstance(ALGORITHM);
+        SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(), ALGORITHM);
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+        return cipher.doFinal(data);
+    }
+
+    @Override
+    public byte[] decrypt(byte[] data, String key) throws Exception {
+        Cipher cipher = Cipher.getInstance(ALGORITHM);
+        SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(), ALGORITHM);
+        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+        return cipher.doFinal(data);
+    }
+}
+
+// Steganography Interface
+package app.steganography;
+
+public interface Steganographer {
+    void hideData(String inputFile, String outputFile, byte[] data) throws Exception;
+    byte[] extractData(String inputFile) throws Exception;
+}
+
+// LSB Image Steganography
+package app.steganography;
+
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import java.io.File;
+
+public class LSBImageSteganography implements Steganographer {
+
+    @Override
+    public void hideData(String inputFile, String outputFile, byte[] data) throws Exception {
+        BufferedImage image = ImageIO.read(new File(inputFile));
+        int dataIndex = 0;
+
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int pixel = image.getRGB(x, y);
+                if (dataIndex < data.length) {
+                    int lsb = (data[dataIndex] & 1);
+                    pixel = (pixel & 0xFFFFFFFE) | lsb;
+                    image.setRGB(x, y, pixel);
+                    dataIndex++;
+                }
+            }
+        }
+        ImageIO.write(image, "png", new File(outputFile));
+    }
+
+    @Override
+    public byte[] extractData(String inputFile) throws Exception {
+        BufferedImage image = ImageIO.read(new File(inputFile));
+        byte[] extractedData = new byte[image.getWidth() * image.getHeight()];
+
+        int dataIndex = 0;
+        for (int y = 0; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                int pixel = image.getRGB(x, y);
+                extractedData[dataIndex] = (byte) (pixel & 1);
+                dataIndex++;
+            }
+        }
+        return extractedData;
+    }
+}
+
+// LSB Audio Steganography (Simplified)
+package app.steganography;
+
+import java.io.*;
+
+public class LSBAudioSteganography implements Steganographer {
+    @Override
+    public void hideData(String inputFile, String outputFile, byte[] data) throws Exception {
+        try (FileInputStream fis = new FileInputStream(inputFile); FileOutputStream fos = new FileOutputStream(outputFile)) {
+            byte[] audioBytes = fis.readAllBytes();
+            for (int i = 0; i < data.length; i++) {
+                audioBytes[i] = (byte) ((audioBytes[i] & 0xFE) | (data[i] & 1));
+            }
+            fos.write(audioBytes);
+        }
+    }
+
+    @Override
+    public byte[] extractData(String inputFile) throws Exception {
+        try (FileInputStream fis = new FileInputStream(inputFile)) {
+            byte[] audioBytes = fis.readAllBytes();
+            byte[] extractedData = new byte[audioBytes.length];
+            for (int i = 0; i < audioBytes.length; i++) {
+                extractedData[i] = (byte) (audioBytes[i] & 1);
+            }
+            return extractedData;
+        }
+    }
+}
+
+// User Authentication
+package app.auth;
+
+import java.util.HashMap;
+
+public class UserAuthenticator {
+    private HashMap<String, String> userDB;
+
+    public UserAuthenticator() {
+        userDB = new HashMap<>();
+        userDB.put("user", "password");
+    }
+
+    public boolean login(String username, String password) {
+        return userDB.containsKey(username) && userDB.get(username).equals(password);
+    }
+}
+
+// Exception Handling
+package app.utils;
+
+public class ExceptionHandler {
+    public static void handle(Exception e) {
+        System.err.println("Error: " + e.getMessage());
+        e.printStackTrace();
+    }
+}

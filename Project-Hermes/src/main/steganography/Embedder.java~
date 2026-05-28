@@ -1,0 +1,100 @@
+package src.main.steganography;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
+import java.awt.image.DataBufferByte;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+
+/**
+ * Advanced Image Steganography Embedder.
+ * Features:
+ * - Supports dynamic File I/O.
+ * - Auto-converts any input format (JPG, BMP) to PNG output.
+ * - Implements 32-bit Length Header embedding for precise extraction.
+ * - Performs pre-flight capacity checks.
+ */
+public class Embedder {
+
+    /**
+     * Embeds a string message into a source image and saves it to a destination file.
+     *
+     * @param sourceFile The original image file (JPG, PNG, BMP, etc.).
+     * @param outputFile The destination file (Will be saved as PNG).
+     * @param message    The encrypted message string to hide.
+     * @throws Exception If the image is too small or I/O errors occur.
+     */
+    public void embedMessage(File sourceFile, File outputFile, String message) throws Exception {
+        // 1. Validate Input
+        if (sourceFile == null || !sourceFile.exists()) {
+            throw new Exception("Source image not found.");
+        }
+        if (message == null || message.isEmpty()) {
+            throw new Exception("Message is empty. Nothing to embed.");
+        }
+
+        // 2. Load Image
+        BufferedImage image = ImageIO.read(sourceFile);
+        if (image == null) {
+            throw new Exception("Failed to load image. Format might be unsupported.");
+        }
+
+        // 3. Convert to User-Space RGB (Ensure 3 bytes per pixel for consistency)
+        // This handles cases where input might be Grayscale or Indexed Color
+        BufferedImage userSpaceImage = new BufferedImage(
+                image.getWidth(), image.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
+        userSpaceImage.getGraphics().drawImage(image, 0, 0, null);
+
+        // 4. Prepare Message with Length Header
+        // Format: [32-bit Length] + [Message Bytes]
+        byte[] messageBytes = message.getBytes(StandardCharsets.UTF_8);
+        int messageLength = messageBytes.length;
+
+        // 5. Check Capacity
+        // 3 bytes per pixel, 1 bit per color channel = 3 bits per pixel.
+        long maxStorageBytes = (long) userSpaceImage.getWidth() * userSpaceImage.getHeight() * 3 / 8;
+        // Need 4 bytes for length + message bytes
+        if (messageLength + 4 > maxStorageBytes) {
+            throw new Exception("Image is too small! Needed: " + (messageLength + 4) +
+                    " bytes, Available: " + maxStorageBytes + " bytes.");
+        }
+
+        // 6. Embed Data
+        embedBytes(userSpaceImage, messageBytes);
+
+        // 7. Save as PNG (Critical for Lossless retention of LSBs)
+        if (!ImageIO.write(userSpaceImage, "png", outputFile)) {
+            throw new Exception("Failed to save the Stego-Image.");
+        }
+    }
+
+    /**
+     * Core logic to embed a byte array into the image using LSB manipulation.
+     */
+    private void embedBytes(BufferedImage image, byte[] messageBytes) {
+        // Access the backing array directly for high performance
+        WritableRaster raster = image.getRaster();
+        DataBufferByte buffer = (DataBufferByte) raster.getDataBuffer();
+        byte[] imageBytes = buffer.getData();
+
+        // 1. Embed Length (Integer -> 32 bits -> 4 bytes)
+        int length = messageBytes.length;
+        for (int i = 0; i < 32; i++) {
+            // Get the bit at position i (from 2^31 down to 2^0)
+            int bit = (length >> (31 - i)) & 1;
+            // Overwrite LSB of image byte
+            imageBytes[i] = (byte) ((imageBytes[i] & 0xFE) | bit);
+        }
+
+        // 2. Embed Message
+        int offset = 32; // Start after the 32 bits of length
+        for (byte b : messageBytes) {
+            for (int i = 7; i >= 0; i--) {
+                int bit = (b >> i) & 1;
+                imageBytes[offset] = (byte) ((imageBytes[offset] & 0xFE) | bit);
+                offset++;
+            }
+        }
+    }
+}

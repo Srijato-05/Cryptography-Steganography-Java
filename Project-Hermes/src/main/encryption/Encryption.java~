@@ -1,0 +1,42 @@
+package src.main.encryption;
+
+import src.main.utils.CompressionUtils;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+
+public class Encryption extends AbstractCrypto {
+
+    public Encryption() {
+        super();
+    }
+
+    /**
+     * Reads a file, compresses it, encrypts it, and saves the Base64 output.
+     */
+    public void encryptFile(File inputFile, File outputFile, String password) throws Exception {
+        if (inputFile == null || !inputFile.exists()) throw new Exception("Input file missing.");
+        if (password == null || password.trim().isEmpty()) throw new Exception("Password cannot be empty.");
+
+        // 1. Read Raw Data
+        byte[] rawData = readBytes(inputFile);
+
+        // 2. Compress (GZIP)
+        byte[] compressedData = CompressionUtils.compress(rawData);
+
+        // 3. Encrypt (AES-256-GCM)
+        String encryptedContent = aesAlgorithm.encrypt(compressedData, password);
+
+        // 4. Save
+        writeBytes(outputFile, encryptedContent.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Encrypts a simple string message (with compression).
+     */
+    public String encryptMessage(String message, String password) throws Exception {
+        if (message == null || message.isEmpty()) throw new Exception("Message cannot be empty.");
+
+        byte[] compressed = CompressionUtils.compress(message.getBytes(StandardCharsets.UTF_8));
+        return aesAlgorithm.encrypt(compressed, password);
+    }
+}

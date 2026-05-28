@@ -1,0 +1,45 @@
+package src.main.encryption;
+
+import src.main.utils.CompressionUtils;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+
+public class Decryption extends AbstractCrypto {
+
+    public Decryption() {
+        super();
+    }
+
+    /**
+     * Reads an encrypted file, decrypts it, decompresses it, and restores the original file.
+     */
+    public void decryptFile(File inputFile, File outputFile, String password) throws Exception {
+        if (inputFile == null || !inputFile.exists()) throw new Exception("Input file missing.");
+        if (password == null || password.trim().isEmpty()) throw new Exception("Password cannot be empty.");
+
+        // 1. Read Encrypted Content
+        byte[] fileBytes = readBytes(inputFile);
+        String encryptedString = new String(fileBytes, StandardCharsets.UTF_8);
+
+        // 2. Decrypt to Compressed Bytes
+        byte[] compressedData = aesAlgorithm.decryptToBytes(encryptedString, password);
+
+        // 3. Decompress (GZIP)
+        byte[] originalData = CompressionUtils.decompress(compressedData);
+
+        // 4. Save Restored Data
+        writeBytes(outputFile, originalData);
+    }
+
+    /**
+     * Decrypts a message string.
+     */
+    public String decryptMessage(String encryptedMessage, String password) throws Exception {
+        if (encryptedMessage == null || encryptedMessage.isEmpty()) throw new Exception("Encrypted message cannot be empty.");
+
+        byte[] compressed = aesAlgorithm.decryptToBytes(encryptedMessage, password);
+        byte[] original = CompressionUtils.decompress(compressed);
+
+        return new String(original, StandardCharsets.UTF_8);
+    }
+}

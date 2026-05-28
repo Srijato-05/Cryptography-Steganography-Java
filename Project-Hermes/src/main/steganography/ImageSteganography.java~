@@ -1,0 +1,147 @@
+package main.steganography;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.awt.image.WritableRaster;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.BitSet;
+
+/**
+ * PRO-LEVEL IMAGE STEGANOGRAPHY ENGINE.
+ * Implements Pseudo-Random Scatter Embedding using Auth Key as a Seed.
+ * Prevents statistical detection by spreading noise across the entire canvas.
+ */
+public class ImageSteganography {
+
+    // ==================================================================================
+    // EMBEDDING LOGIC (Scatter Mode)
+    // ==================================================================================
+
+    public void embedMessage(File sourceFile, File destFile, String message, String password) throws Exception {
+        // 1. Load Image and convert to standard byte format
+        BufferedImage image = ImageIO.read(sourceFile);
+        BufferedImage userImage = getImageToEmbed(image);
+
+        WritableRaster raster = userImage.getRaster();
+        DataBufferByte buffer = (DataBufferByte) raster.getDataBuffer();
+        byte[] imgData = buffer.getData();
+
+        // 2. Prepare Payload
+        byte[] messageBytes = message.getBytes(StandardCharsets.UTF_8);
+        byte[] lengthBytes = intToBytes(messageBytes.length);
+
+        // 3. Capacity Check (1 byte of data = 8 bytes of image)
+        int totalRequiredBits = (lengthBytes.length + messageBytes.length) * 8;
+        if (totalRequiredBits > imgData.length) {
+            throw new Exception("Payload exceeds image capacity. Need " + totalRequiredBits + " pixels.");
+        }
+
+        // 4. Initialize PRNG with Password Seed
+        SecureRandom prng = java.security.SecureRandom.getInstance("SHA1PRNG");
+        prng.setSeed(password.getBytes());
+
+        // 5. EMBED HEADER (First 32 bits - Sequential for Handshake)
+        int imgOffset = 0;
+        for (byte b : lengthBytes) {
+            for (int i = 7; i >= 0; i--) {
+                int bit = (b >>> i) & 1;
+                imgData[imgOffset] = (byte) ((imgData[imgOffset] & 0xFE) | bit);
+                imgOffset++;
+            }
+        }
+
+        // 6. EMBED DATA (Scatter Mode)
+        // Use a BitSet to ensure we don't reuse pixels
+        BitSet usedPixels = new BitSet(imgData.length);
+        // Mark header pixels as used
+        usedPixels.set(0, 32);
+
+        for (byte b : messageBytes) {
+            for (int i = 7; i >= 0; i--) {
+                int bit = (b >>> i) & 1;
+
+                // Find a random unused pixel
+                int randomPixel = findUnusedIndex(prng, imgData.length, usedPixels);
+                imgData[randomPixel] = (byte) ((imgData[randomPixel] & 0xFE) | bit);
+                usedPixels.set(randomPixel);
+            }
+        }
+
+        // 7. Save as Lossless PNG
+        ImageIO.write(userImage, "png", destFile);
+    }
+
+    // ==================================================================================
+    // EXTRACTION LOGIC (Scatter Mode)
+    // ==================================================================================
+
+    public String extractMessage(File sourceFile, String password) throws Exception {
+        BufferedImage image = ImageIO.read(sourceFile);
+        BufferedImage userImage = getImageToEmbed(image);
+
+        WritableRaster raster = userImage.getRaster();
+        DataBufferByte buffer = (DataBufferByte) raster.getDataBuffer();
+        byte[] imgData = buffer.getData();
+
+        // 1. Initialize PRNG with same Password Seed
+        SecureRandom prng = java.security.SecureRandom.getInstance("SHA1PRNG");
+        prng.setSeed(password.getBytes());
+
+        // 2. Extract Length Header (First 32 bits)
+        byte[] lengthBytes = new byte[4];
+        int imgOffset = 0;
+        for (int i = 0; i < 4; i++) {
+            for (int bit = 7; bit >= 0; bit--) {
+                int lsb = imgData[imgOffset] & 1;
+                lengthBytes[i] = (byte) ((lengthBytes[i] | (lsb << bit)));
+                imgOffset++;
+            }
+        }
+        int messageLength = bytesToInt(lengthBytes);
+
+        // 3. Extract Payload (Scatter Mode)
+        BitSet usedPixels = new BitSet(imgData.length);
+        usedPixels.set(0, 32);
+
+        byte[] messageBytes = new byte[messageLength];
+        for (int i = 0; i < messageLength; i++) {
+            for (int bit = 7; bit >= 0; bit--) {
+                int randomPixel = findUnusedIndex(prng, imgData.length, usedPixels);
+                int lsb = imgData[randomPixel] & 1;
+                messageBytes[i] = (byte) ((messageBytes[i] | (lsb << bit)));
+                usedPixels.set(randomPixel);
+            }
+        }
+
+        return new String(messageBytes, StandardCharsets.UTF_8);
+    }
+
+    // ==================================================================================
+    // HELPER METHODS
+    // ==================================================================================
+
+    private int findUnusedIndex(SecureRandom prng, int max, BitSet used) {
+        int index;
+        do {
+            index = prng.nextInt(max);
+        } while (used.get(index));
+        return index;
+    }
+
+    private BufferedImage getImageToEmbed(BufferedImage original) {
+        BufferedImage image = new BufferedImage(original.getWidth(), original.getHeight(), BufferedImage.TYPE_3BYTE_BGR);
+        image.getGraphics().drawImage(original, 0, 0, null);
+        return image;
+    }
+
+    private byte[] intToBytes(int i) {
+        return new byte[]{ (byte)(i >> 24), (byte)(i >> 16), (byte)(i >> 8), (byte)i };
+    }
+
+    private int bytesToInt(byte[] b) {
+        return ((b[0] & 0xFF) << 24) | ((b[1] & 0xFF) << 16) | ((b[2] & 0xFF) << 8) | (b[3] & 0xFF);
+    }
+}

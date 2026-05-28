@@ -1,0 +1,252 @@
+package main.controller;
+
+import main.encryption.Decryption;
+import main.encryption.Encryption;
+import main.steganography.AudioSteganography;
+import main.steganography.ImageSteganography;
+import main.steganography.VideoSteganography;
+import main.ui.AppUI;
+import main.utils.ExceptionHandler;
+
+import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import java.awt.*;
+import java.io.File;
+
+/**
+ * Main Controller.
+ * COORDINATES CRYPTOGRAPHY & SCATTER STEGANOGRAPHY.
+ * * UPDATES:
+ * - Passes 'Auth Key' to Image/Audio engines to seed the PRNG Scatter.
+ * - Manages Decoy logic and Real-time Terminal Logging.
+ */
+public class MainController {
+
+    private final AppUI view;
+    private final Encryption encryption;
+    private final Decryption decryption;
+    private final ImageSteganography imageStego;
+    private final AudioSteganography audioStego;
+    private final VideoSteganography videoStego;
+
+    private File lastSelectedDirectory;
+
+    public MainController(AppUI view) {
+        this.view = view;
+        this.encryption = new Encryption();
+        this.decryption = new Decryption();
+        this.imageStego = new ImageSteganography();
+        this.audioStego = new AudioSteganography();
+        this.videoStego = new VideoSteganography();
+
+        this.lastSelectedDirectory = new File(System.getProperty("user.home"));
+    }
+
+    // ==================================================================================
+    // CRYPTOGRAPHY OPERATIONS (AES-256-GCM)
+    // ==================================================================================
+
+    public void encryptFile(File source, File destination, String password) {
+        try {
+            view.log("INITIATING AES-256-GCM ENCRYPTION PROTOCOL...");
+            view.log("SOURCE: " + source.getName() + " | SIZE: " + source.length() + " BYTES");
+
+            long startTime = System.currentTimeMillis();
+            encryption.encryptFile(source, destination, password);
+            long duration = System.currentTimeMillis() - startTime;
+
+            view.log("ENCRYPTION COMPLETE IN " + duration + "MS.");
+            view.log("ARTIFACT GENERATED: " + destination.getName());
+
+            JOptionPane.showMessageDialog(view, "Target Encrypted Successfully.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            view.log("CRITICAL ERROR: ENCRYPTION FAILED.");
+            ExceptionHandler.handle(e, "Encryption Error");
+        }
+    }
+
+    public void decryptFile(File source, File destination, String password) {
+        try {
+            view.log("ATTEMPTING DECRYPTION ON: " + source.getName());
+            view.log("VERIFYING AUTH KEY INTEGRITY...");
+
+            long startTime = System.currentTimeMillis();
+            decryption.decryptFile(source, destination, password);
+            long duration = System.currentTimeMillis() - startTime;
+
+            view.log("ACCESS GRANTED. FILE RESTORED IN " + duration + "MS.");
+            JOptionPane.showMessageDialog(view, "Target Decrypted Successfully.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            view.log("ACCESS DENIED: DECRYPTION FAILED (INVALID KEY OR CORRUPT FILE).");
+            ExceptionHandler.handle(e, "Decryption Error");
+        }
+    }
+
+    // ==================================================================================
+    // STEGANOGRAPHY OPERATIONS (Scatter Mode Enabled)
+    // ==================================================================================
+
+    public void embedInImage(File src, File dest, String msg, String pass, boolean useDecoy) {
+        try {
+            view.log("ANALYZING IMAGE CARRIER: " + src.getName());
+
+            String payloadToHide;
+            if (useDecoy) {
+                view.log("WARNING: DECOY PROTOCOL ACTIVE.");
+                view.log("GENERATING DUAL-LAYER PAYLOAD STRUCTURE...");
+                payloadToHide = "REAL_LAYER::" + encryption.encryptMessage(msg, pass);
+            } else {
+                view.log("ENCRYPTING PAYLOAD (AES-256)...");
+                payloadToHide = encryption.encryptMessage(msg, pass);
+            }
+
+            view.log("INITIALIZING PRNG WITH AUTH KEY SEED...");
+            view.log("SCATTERING PAYLOAD ACROSS PIXEL DATA...");
+
+            // PASS PASSWORD HERE FOR SCATTER LOGIC
+            imageStego.embedMessage(src, dest, payloadToHide, pass);
+
+            view.log("STEGANOGRAPHY COMPLETE. OUTPUT: " + dest.getName());
+            JOptionPane.showMessageDialog(view, "Secure Injection (Scatter) Complete.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            view.log("ERROR: IMAGE INJECTION FAILED.");
+            ExceptionHandler.handle(e, "Embed Error");
+        }
+    }
+
+    public String extractFromImage(File src, String pass) {
+        try {
+            view.log("RECONSTRUCTING PRNG SEQUENCE FROM AUTH KEY...");
+            view.log("SCANNING SCATTERED PIXELS...");
+
+            // PASS PASSWORD HERE FOR SCATTER LOGIC
+            String securePayload = imageStego.extractMessage(src, pass);
+
+            view.log("ENCRYPTED PAYLOAD FOUND. ATTEMPTING DECRYPTION...");
+
+            if (securePayload.startsWith("REAL_LAYER::")) {
+                securePayload = securePayload.replace("REAL_LAYER::", "");
+                view.log("NOTICE: DECOY LAYER BYPASSED. ACCESSING CORE.");
+            }
+
+            return decryption.decryptMessage(securePayload, pass);
+        } catch (Exception e) {
+            view.log("ERROR: EXTRACTION FAILED (WRONG KEY OR NO DATA).");
+            return null;
+        }
+    }
+
+    public void embedInAudio(File src, File dest, String msg, String pass) {
+        try {
+            view.log("ANALYZING AUDIO WAVEFORM...");
+            String securePayload = encryption.encryptMessage(msg, pass);
+
+            view.log("INITIALIZING PRNG SCATTER ENGINE...");
+            view.log("MODIFYING RANDOM PCM SAMPLES...");
+
+            // PASS PASSWORD HERE FOR SCATTER LOGIC
+            audioStego.embedMessage(src, dest, securePayload, pass);
+
+            view.log("SUCCESS: AUDIO CARRIER GENERATED.");
+            JOptionPane.showMessageDialog(view, "Audio Injection (Scatter) Complete.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            view.log("ERROR: AUDIO INJECTION FAILED.");
+            ExceptionHandler.handle(e, "Embed Error");
+        }
+    }
+
+    public String extractFromAudio(File src, String pass) {
+        try {
+            view.log("RECONSTRUCTING SCATTER PATTERN...");
+
+            // PASS PASSWORD HERE FOR SCATTER LOGIC
+            String securePayload = audioStego.extractMessage(src, pass);
+
+            view.log("DECRYPTING STREAM...");
+            return decryption.decryptMessage(securePayload, pass);
+        } catch (Exception e) {
+            view.log("ERROR: AUDIO EXTRACTION FAILED.");
+            return null;
+        }
+    }
+
+    public void embedInVideo(File src, File dest, String msg, String pass) {
+        try {
+            view.log("ANALYZING VIDEO CONTAINER...");
+            // Video does not support scatter, so we just encrypt the payload
+            String securePayload = encryption.encryptMessage(msg, pass);
+
+            view.log("APPENDING ENCRYPTED DATA TO EOF...");
+            videoStego.embedMessage(src, dest, securePayload);
+
+            view.log("SUCCESS: VIDEO CARRIER GENERATED.");
+            JOptionPane.showMessageDialog(view, "Video Injection Complete.", "SECURE-STEGO", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            view.log("ERROR: VIDEO INJECTION FAILED.");
+            ExceptionHandler.handle(e, "Embed Error");
+        }
+    }
+
+    public String extractFromVideo(File src, String pass) {
+        try {
+            view.log("SCANNING VIDEO EOF SIGNATURE...");
+            String securePayload = videoStego.extractMessage(src);
+            view.log("DECRYPTING PAYLOAD...");
+            return decryption.decryptMessage(securePayload, pass);
+        } catch (Exception e) {
+            view.log("ERROR: VIDEO EXTRACTION FAILED.");
+            return null;
+        }
+    }
+
+    // ==================================================================================
+    // FILE DIALOGS (With MIME-Type Masking)
+    // ==================================================================================
+
+    public File showOpenDialog(Component parent, String title, String[] extensions) {
+        JFileChooser chooser = new JFileChooser(lastSelectedDirectory);
+        chooser.setDialogTitle(title);
+
+        if (extensions != null && extensions.length > 0) {
+            chooser.setFileFilter(new FileNameExtensionFilter("Supported Media", extensions));
+        }
+
+        if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION) {
+            lastSelectedDirectory = chooser.getSelectedFile().getParentFile();
+            return chooser.getSelectedFile();
+        }
+        view.log("OPERATION ABORTED BY USER.");
+        return null;
+    }
+
+    public File showSaveDialog(Component parent, String defaultName, String description, String extension) {
+        JFileChooser chooser = new JFileChooser(lastSelectedDirectory);
+        chooser.setDialogTitle("SELECT OUTPUT TARGET");
+
+        String filename = extension.isEmpty() ? defaultName : defaultName + "." + extension;
+        chooser.setSelectedFile(new File(lastSelectedDirectory, filename));
+
+        if (!extension.isEmpty()) {
+            chooser.setFileFilter(new FileNameExtensionFilter(description, extension));
+        }
+
+        if (chooser.showSaveDialog(parent) == JFileChooser.APPROVE_OPTION) {
+            File selected = chooser.getSelectedFile();
+            lastSelectedDirectory = selected.getParentFile();
+
+            // MIME-MASKING LOGIC
+            String name = selected.getName();
+            if (!extension.isEmpty() && !name.contains(".")) {
+                selected = new File(selected.getAbsolutePath() + "." + extension);
+                view.log("AUTO-APPENDING EXTENSION: ." + extension);
+            } else if (name.contains(".") && !name.toLowerCase().endsWith("." + extension)) {
+                view.log("WARNING: CUSTOM EXTENSION DETECTED (MIME MASKING ACTIVE).");
+            }
+
+            view.log("TARGET SET: " + selected.getName());
+            return selected;
+        }
+        view.log("SAVE OPERATION CANCELLED.");
+        return null;
+    }
+}

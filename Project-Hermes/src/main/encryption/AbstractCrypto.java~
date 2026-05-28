@@ -1,0 +1,32 @@
+package main.encryption;
+
+import java.io.*;
+import java.nio.file.Files;
+
+/**
+ * Abstract Base Class for Cryptographic Operations.
+ * Features:
+ * - Dynamic I/O.
+ * - Supports Binary File reading/writing (Files.readAllBytes).
+ */
+public abstract class AbstractCrypto {
+
+    protected final AESAlgorithm aesAlgorithm;
+
+    public AbstractCrypto() {
+        this.aesAlgorithm = new AESAlgorithm();
+    }
+
+    protected byte[] readBytes(File inputFile) throws IOException {
+        if (inputFile == null || !inputFile.exists()) {
+            throw new IOException("Input file not found.");
+        }
+        return Files.readAllBytes(inputFile.toPath());
+    }
+
+    protected void writeBytes(File outputFile, byte[] data) throws IOException {
+        if (outputFile == null) throw new IOException("Output file is null.");
+        if (outputFile.getParentFile() != null) outputFile.getParentFile().mkdirs();
+        Files.write(outputFile.toPath(), data);
+    }
+}

@@ -1,0 +1,363 @@
+package main.ui;
+
+import main.utils.Config;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.text.DefaultCaret;
+import javax.swing.text.JTextComponent;
+import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.dnd.*;
+import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+
+/**
+ * FINAL UI BUILD.
+ * UPDATED:
+ * - Taller Passkey (Auth Key) Field for better accessibility.
+ * - Significantly larger System Log window with increased font size.
+ * - Improved centered layout and vertical spacing.
+ * - Fully scrollable terminal logic.
+ */
+public class AppUI extends JFrame {
+
+    private JPasswordField passwordField;
+    private JTextArea messageArea;
+    private JTextArea systemLog;
+    private JProgressBar capacityMeter;
+    private JCheckBox decoyModeCheck;
+    private JLabel capacityLabel;
+    private JProgressBar entropyBar;
+    private JLabel entropyValueLabel;
+
+    private File droppedFile;
+
+    private JButton encryptBtn, decryptBtn;
+    private JButton hideImgBtn, extractImgBtn, hideAudBtn, extractAudBtn, hideVidBtn, extractVidBtn;
+
+    // Optimized Fonts for readability and impact
+    private static final Font HEADER_FONT = new Font("OCR A Extended", Font.BOLD, 26);
+    private static final Font LARGE_FONT = new Font("Consolas", Font.BOLD, 20);
+    private static final Font MEDIUM_FONT = new Font("Consolas", Font.PLAIN, 16);
+    private static final Font TERMINAL_FONT = new Font("Lucida Console", Font.PLAIN, 14); // Increased size
+
+    public AppUI() {
+        setTitle(Config.APP_TITLE);
+        setSize(1300, 950); // Increased dimensions for larger log window
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+
+        // Main Cyber-Grid Container
+        JPanel mainContainer = new JPanel(new BorderLayout(0, 25)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                GradientPaint gp = new GradientPaint(0, 0, Config.DARK_PURPLE, 0, getHeight(), Color.BLACK);
+                g2.setPaint(gp);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.setColor(new Color(0, 255, 255, 12));
+                for(int i = 0; i < getWidth(); i += 35) g2.drawLine(i, 0, i, getHeight());
+                for(int j = 0; j < getHeight(); j += 35) g2.drawLine(0, j, getWidth(), j);
+            }
+        };
+        mainContainer.setBorder(new EmptyBorder(35, 35, 35, 35));
+        enableDragAndDrop(mainContainer);
+
+        // Center Split Section (Crypto | Stego)
+        JPanel splitPanel = new JPanel(new GridLayout(1, 2, 40, 0));
+        splitPanel.setOpaque(false);
+        splitPanel.add(createCryptoPanel());
+        splitPanel.add(createStegoPanel());
+
+        mainContainer.add(splitPanel, BorderLayout.CENTER);
+
+        // Bottom Section: Massive Terminal Window
+        mainContainer.add(createLogTerminal(), BorderLayout.SOUTH);
+
+        add(mainContainer);
+    }
+
+    private JPanel createCryptoPanel() {
+        JPanel p = new GlassPanel("CRYPTO ENGINE");
+
+        JLabel authKeyLabel = new JLabel("AUTH KEY / PASSPHRASE");
+        authKeyLabel.setForeground(Config.TEXT_PRIMARY);
+        authKeyLabel.setFont(LARGE_FONT);
+        authKeyLabel.setAlignmentX(CENTER_ALIGNMENT);
+
+        // INCREASED HEIGHT: Taller Passkey Field
+        passwordField = new JPasswordField();
+        styleComponent(passwordField);
+        passwordField.setPreferredSize(new Dimension(400, 45));
+        passwordField.setMaximumSize(new Dimension(500, 45));
+
+        passwordField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { updateEntropy(); }
+            public void removeUpdate(DocumentEvent e) { updateEntropy(); }
+            public void changedUpdate(DocumentEvent e) { updateEntropy(); }
+        });
+
+        encryptBtn = createNeonBtn("ENCRYPT TARGET", true);
+        decryptBtn = createNeonBtn("DECRYPT TARGET", true);
+
+        // Telemetry Sub-panel (Centered)
+        JPanel telemetryPanel = createEntropyTelemetryPanel();
+        telemetryPanel.setAlignmentX(CENTER_ALIGNMENT);
+
+        p.add(Box.createVerticalGlue());
+        p.add(authKeyLabel);
+        p.add(Box.createVerticalStrut(15));
+        p.add(passwordField);
+        p.add(Box.createVerticalStrut(30));
+        p.add(encryptBtn);
+        p.add(Box.createVerticalStrut(15));
+        p.add(decryptBtn);
+        p.add(Box.createVerticalStrut(40));
+        p.add(telemetryPanel);
+        p.add(Box.createVerticalGlue());
+
+        return p;
+    }
+
+    private JPanel createEntropyTelemetryPanel() {
+        JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setOpaque(false);
+        p.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(Config.NEON_CYAN, 1),
+                " SYSTEM TELEMETRY ", 0, 0, MEDIUM_FONT, Config.NEON_CYAN
+        ));
+        p.setMaximumSize(new Dimension(450, 150));
+
+        entropyValueLabel = new JLabel("KEY ENTROPY: 0 BITS (WEAK)");
+        entropyValueLabel.setForeground(Config.NEON_RED);
+        entropyValueLabel.setFont(MEDIUM_FONT);
+        entropyValueLabel.setAlignmentX(CENTER_ALIGNMENT);
+
+        entropyBar = new JProgressBar(0, 128);
+        entropyBar.setMaximumSize(new Dimension(400, 10));
+        entropyBar.setForeground(Config.NEON_RED);
+        entropyBar.setBackground(new Color(20, 20, 30));
+        entropyBar.setBorderPainted(false);
+
+        p.add(Box.createVerticalStrut(10));
+        p.add(entropyValueLabel);
+        p.add(Box.createVerticalStrut(10));
+        p.add(entropyBar);
+        p.add(Box.createVerticalStrut(10));
+        return p;
+    }
+
+    private JPanel createStegoPanel() {
+        JPanel p = new GlassPanel("STEGO INJECTOR");
+
+        JLabel payloadLabel = new JLabel("PAYLOAD DATA");
+        payloadLabel.setForeground(Config.TEXT_PRIMARY);
+        payloadLabel.setFont(LARGE_FONT);
+        payloadLabel.setAlignmentX(CENTER_ALIGNMENT);
+
+        messageArea = new JTextArea(6, 20);
+        styleComponent(messageArea);
+        JScrollPane scroll = new JScrollPane(messageArea);
+        scroll.setBorder(BorderFactory.createLineBorder(Config.NEON_CYAN, 1));
+        scroll.setMaximumSize(new Dimension(500, 150));
+
+        messageArea.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { updateCapacity(); }
+            public void removeUpdate(DocumentEvent e) { updateCapacity(); }
+            public void changedUpdate(DocumentEvent e) { updateCapacity(); }
+        });
+
+        capacityLabel = new JLabel("CAPACITY USAGE: 0%");
+        capacityLabel.setForeground(Config.NEON_CYAN);
+        capacityLabel.setFont(MEDIUM_FONT);
+        capacityLabel.setAlignmentX(CENTER_ALIGNMENT);
+
+        capacityMeter = new JProgressBar(0, 100);
+        capacityMeter.setMaximumSize(new Dimension(500, 8));
+        capacityMeter.setForeground(Config.NEON_GREEN);
+        capacityMeter.setBackground(new Color(20, 20, 30));
+
+        decoyModeCheck = new JCheckBox("ENABLE DECOY PAYLOAD (DUAL-LAYER)");
+        decoyModeCheck.setOpaque(false);
+        decoyModeCheck.setForeground(Config.NEON_YELLOW);
+        decoyModeCheck.setFont(MEDIUM_FONT);
+        decoyModeCheck.setAlignmentX(CENTER_ALIGNMENT);
+
+        hideImgBtn = createNeonBtn("INJECT IMAGE", false);
+        extractImgBtn = createNeonBtn("EXTRACT IMAGE", false);
+        hideAudBtn = createNeonBtn("INJECT AUDIO", false);
+        extractAudBtn = createNeonBtn("EXTRACT AUDIO", false);
+        hideVidBtn = createNeonBtn("INJECT VIDEO", false);
+        extractVidBtn = createNeonBtn("EXTRACT VIDEO", false);
+
+        JPanel btnGrid = new JPanel(new GridLayout(3, 2, 15, 12));
+        btnGrid.setOpaque(false);
+        btnGrid.setMaximumSize(new Dimension(500, 180));
+        btnGrid.add(hideImgBtn); btnGrid.add(extractImgBtn);
+        btnGrid.add(hideAudBtn); btnGrid.add(extractAudBtn);
+        btnGrid.add(hideVidBtn); btnGrid.add(extractVidBtn);
+
+        p.add(Box.createVerticalGlue());
+        p.add(payloadLabel);
+        p.add(Box.createVerticalStrut(10));
+        p.add(scroll);
+        p.add(Box.createVerticalStrut(10));
+        p.add(capacityLabel);
+        p.add(capacityMeter);
+        p.add(Box.createVerticalStrut(15));
+        p.add(decoyModeCheck);
+        p.add(Box.createVerticalStrut(20));
+        p.add(btnGrid);
+        p.add(Box.createVerticalGlue());
+
+        return p;
+    }
+
+    private JPanel createLogTerminal() {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        p.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(Config.NEON_CYAN, 2),
+                " SECURE SYSTEM COMMAND LOG ", 0, 0, LARGE_FONT, Config.NEON_CYAN
+        ));
+
+        // EXPANDED LOG: Larger rows and text
+        systemLog = new JTextArea(12, 50);
+        systemLog.setEditable(false);
+        systemLog.setBackground(new Color(5, 5, 10));
+        systemLog.setForeground(Config.NEON_GREEN);
+        systemLog.setFont(TERMINAL_FONT);
+        systemLog.setMargin(new Insets(15, 15, 15, 15));
+
+        DefaultCaret caret = (DefaultCaret) systemLog.getCaret();
+        caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
+
+        // Centered Scrollable Window
+        JScrollPane scroll = new JScrollPane(systemLog);
+        scroll.setBorder(null);
+        scroll.setPreferredSize(new Dimension(1200, 250));
+
+        p.add(scroll, BorderLayout.CENTER);
+        return p;
+    }
+
+    // --- LOGIC REROUTING & UTILS ---
+
+    public void log(String message) {
+        String ts = new SimpleDateFormat("HH:mm:ss").format(new Date());
+        systemLog.append("[" + ts + "] » " + message.toUpperCase() + "\n");
+    }
+
+    public void setStatus(String message) { log(message); }
+
+    private void updateEntropy() {
+        String pass = new String(passwordField.getPassword());
+        int bits = (int) (pass.length() * (Math.log(pass.chars().distinct().count() + 1) / Math.log(2)));
+        entropyBar.setValue(bits);
+        if (bits < 40) {
+            entropyBar.setForeground(Config.NEON_RED);
+            entropyValueLabel.setText("KEY ENTROPY: " + bits + " BITS (WEAK)");
+            entropyValueLabel.setForeground(Config.NEON_RED);
+        } else if (bits < 80) {
+            entropyBar.setForeground(Config.NEON_YELLOW);
+            entropyValueLabel.setText("KEY ENTROPY: " + bits + " BITS (MODERATE)");
+            entropyValueLabel.setForeground(Config.NEON_YELLOW);
+        } else {
+            entropyBar.setForeground(Config.NEON_GREEN);
+            entropyValueLabel.setText("KEY ENTROPY: " + bits + " BITS (SECURE)");
+            entropyValueLabel.setForeground(Config.NEON_GREEN);
+        }
+    }
+
+    private void updateCapacity() {
+        if (droppedFile != null) {
+            int percent = Math.min(100, (int) ((messageArea.getText().length() / (double) (droppedFile.length() / 10)) * 100));
+            capacityMeter.setValue(percent);
+            capacityLabel.setText("CAPACITY USAGE: " + percent + "%");
+            capacityMeter.setForeground(percent > 80 ? Config.NEON_RED : Config.NEON_GREEN);
+        }
+    }
+
+    private void styleComponent(JComponent c) {
+        c.setBackground(new Color(15, 15, 25));
+        c.setForeground(Config.NEON_CYAN);
+        c.setBorder(BorderFactory.createLineBorder(Config.NEON_CYAN, 1));
+        c.setFont(LARGE_FONT);
+        c.setAlignmentX(CENTER_ALIGNMENT);
+        if (c instanceof JTextComponent) ((JTextComponent) c).setCaretColor(Config.NEON_CYAN);
+    }
+
+    private JButton createNeonBtn(String text, boolean isLarge) {
+        JButton b = new JButton(text);
+        b.setBackground(Config.DARK_PURPLE);
+        b.setForeground(Config.NEON_CYAN);
+        b.setFocusPainted(false);
+        b.setBorder(BorderFactory.createLineBorder(Config.NEON_CYAN, 2));
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        b.setFont(isLarge ? LARGE_FONT : MEDIUM_FONT);
+        b.setAlignmentX(CENTER_ALIGNMENT);
+        b.setPreferredSize(isLarge ? new Dimension(350, 55) : new Dimension(220, 45));
+
+        b.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent e) { b.setBackground(Config.NEON_CYAN); b.setForeground(Color.BLACK); }
+            public void mouseExited(java.awt.event.MouseEvent e) { b.setBackground(Config.DARK_PURPLE); b.setForeground(Config.NEON_CYAN); }
+        });
+        return b;
+    }
+
+    private class GlassPanel extends JPanel {
+        GlassPanel(String title) {
+            setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+            setOpaque(false);
+            setBorder(new EmptyBorder(25, 25, 25, 25));
+            JLabel t = new JLabel(title);
+            t.setFont(HEADER_FONT);
+            t.setForeground(Config.NEON_CYAN);
+            t.setAlignmentX(CENTER_ALIGNMENT);
+            add(t);
+        }
+        @Override protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(Config.GLASS_BG);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 25, 25);
+            g2.setColor(Config.BORDER_GLOW);
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 25, 25);
+            super.paintComponent(g);
+        }
+    }
+
+    private void enableDragAndDrop(JPanel p) {
+        new DropTarget(p, new DropTargetAdapter() {
+            public void drop(DropTargetDropEvent dtde) {
+                try {
+                    dtde.acceptDrop(DnDConstants.ACTION_COPY);
+                    List<File> files = (List<File>) dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+                    if (!files.isEmpty()) { droppedFile = files.get(0); log("FILE LOADED: " + droppedFile.getName()); updateCapacity(); }
+                } catch (Exception e) { log("ERROR: DROP FAILED"); }
+            }
+        });
+    }
+
+    // Getters
+    public String getPassword() { return new String(passwordField.getPassword()); }
+    public String getMessage() { return messageArea.getText(); }
+    public File getDroppedFile() { return droppedFile; }
+    public void clearDroppedFile() { droppedFile = null; updateCapacity(); }
+    public boolean isDecoyEnabled() { return decoyModeCheck.isSelected(); }
+    public JButton getEncryptBtn() { return encryptBtn; }
+    public JButton getDecryptBtn() { return decryptBtn; }
+    public JButton getHideImgBtn() { return hideImgBtn; }
+    public JButton getExtractImgBtn() { return extractImgBtn; }
+    public JButton getHideAudBtn() { return hideAudBtn; }
+    public JButton getExtractAudBtn() { return extractAudBtn; }
+    public JButton getHideVidBtn() { return hideVidBtn; }
+    public JButton getExtractVidBtn() { return extractVidBtn; }
+}

@@ -1,0 +1,140 @@
+package src.main.steganography;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+
+/**
+ * Audio Steganography Engine (WAV Support).
+ * Implements LSB Injection on Raw PCM Data.
+ * * CRITICAL LOGIC:
+ * - Skips standard WAV Header (44 bytes) to prevent file corruption.
+ * - Hides 1 bit of data per byte of audio sample.
+ */
+public class AudioSteganography {
+
+    private static final int HEADER_SIZE = 44; // Standard WAV header size
+
+    // ==================================================================================
+    // EMBEDDING LOGIC
+    // ==================================================================================
+
+    public void embedMessage(File sourceFile, File destFile, String message) throws Exception {
+        // 1. Read all bytes from source audio
+        byte[] audioBytes = readFile(sourceFile);
+
+        // 2. Prepare Payload (Length + Message)
+        byte[] messageBytes = message.getBytes(StandardCharsets.UTF_8);
+        byte[] lengthBytes = intToBytes(messageBytes.length);
+
+        // Combine: [LENGTH (4 bytes)] + [MESSAGE (N bytes)]
+        byte[] payload = new byte[lengthBytes.length + messageBytes.length];
+        System.arraycopy(lengthBytes, 0, payload, 0, lengthBytes.length);
+        System.arraycopy(messageBytes, 0, payload, lengthBytes.length, messageBytes.length);
+
+        // 3. Check Capacity
+        // We need 8 audio bytes for every 1 payload byte
+        int requiredSize = HEADER_SIZE + (payload.length * 8);
+        if (requiredSize > audioBytes.length) {
+            throw new Exception("Audio file too short. Capacity needed: " + requiredSize + ", Available: " + audioBytes.length);
+        }
+
+        // 4. Inject Payload (LSB)
+        // Start AFTER the header
+        encodeLSB(audioBytes, payload, HEADER_SIZE);
+
+        // 5. Write modified bytes to destination
+        writeFile(destFile, audioBytes);
+    }
+
+    private void encodeLSB(byte[] audioData, byte[] payload, int offset) {
+        int audioIndex = offset;
+
+        for (byte b : payload) {
+            // Iterate through 8 bits of the payload byte
+            for (int i = 7; i >= 0; i--) {
+                // Get the bit (0 or 1)
+                int bit = (b >> i) & 1;
+
+                // Clear LSB of audio byte and set new bit
+                audioData[audioIndex] = (byte) ((audioData[audioIndex] & 0xFE) | bit);
+
+                audioIndex++;
+            }
+        }
+    }
+
+    // ==================================================================================
+    // EXTRACTION LOGIC
+    // ==================================================================================
+
+    public String extractMessage(File sourceFile) throws Exception {
+        byte[] audioBytes = readFile(sourceFile);
+
+        // 1. Extract Length Header (First 32 bits after header)
+        // We read 4 bytes * 8 bits/byte = 32 audio samples
+        byte[] lengthBytes = decodeLSB(audioBytes, HEADER_SIZE, 4);
+        int messageLength = bytesToInt(lengthBytes);
+
+        // Sanity Check
+        if (messageLength < 0 || (HEADER_SIZE + 32 + (messageLength * 8)) > audioBytes.length) {
+            throw new Exception("No valid hidden data found (Corrupt Header).");
+        }
+
+        // 2. Extract Payload
+        // Offset = Header + (4 bytes length * 8 bits)
+        int payloadStartOffset = HEADER_SIZE + (4 * 8);
+        byte[] messageBytes = decodeLSB(audioBytes, payloadStartOffset, messageLength);
+
+        return new String(messageBytes, StandardCharsets.UTF_8);
+    }
+
+    private byte[] decodeLSB(byte[] audioData, int offset, int lengthInBytes) {
+        byte[] result = new byte[lengthInBytes];
+        int audioIndex = offset;
+
+        for (int i = 0; i < lengthInBytes; i++) {
+            for (int bit = 7; bit >= 0; bit--) {
+                // Read LSB
+                int lsb = audioData[audioIndex] & 1;
+
+                // Push bit into result byte
+                result[i] = (byte) ((result[i] | (lsb << bit)));
+
+                audioIndex++;
+            }
+        }
+        return result;
+    }
+
+    // ==================================================================================
+    // UTILITIES
+    // ==================================================================================
+
+    private byte[] readFile(File file) throws IOException {
+        try (FileInputStream fis = new FileInputStream(file)) {
+            return fis.readAllBytes();
+        }
+    }
+
+    private void writeFile(File file, byte[] data) throws IOException {
+        try (FileOutputStream fos = new FileOutputStream(file)) {
+            fos.write(data);
+        }
+    }
+
+    private byte[] intToBytes(int i) {
+        return new byte[]{
+                (byte) ((i >> 24) & 0xFF),
+                (byte) ((i >> 16) & 0xFF),
+                (byte) ((i >> 8) & 0xFF),
+                (byte) (i & 0xFF)
+        };
+    }
+
+    private int bytesToInt(byte[] b) {
+        return ((b[0] & 0xFF) << 24) |
+                ((b[1] & 0xFF) << 16) |
+                ((b[2] & 0xFF) << 8) |
+                (b[3] & 0xFF);
+    }
+}
