@@ -276,6 +276,12 @@ javac src/main/TestSuite.java
 java src.main.TestSuite
 ```
 
+## Working Demo
+
+<img width="1919" height="1003" alt="image" src="https://github.com/user-attachments/assets/eba44754-273f-4520-808e-d50d1655b8aa" />
+<img width="1919" height="1011" alt="image" src="https://github.com/user-attachments/assets/9053d8d7-1983-4b27-b9e9-3affd9510268" />
+<img width="1919" height="992" alt="image" src="https://github.com/user-attachments/assets/b4318e03-415c-41ca-a5df-623bb6a3cc6b" />
+
 ### Coverage Scope
 1. **Symmetric Engine Correctness**: Tests encryption and decryption loops for AES-GCM, ChaCha20-Poly1305, and AES-CBC.
 2. **Dynamic Header Auto-Detection**: Asserts that the decryption module identifies the algorithm from the header byte and decrypts with the correct spec.
