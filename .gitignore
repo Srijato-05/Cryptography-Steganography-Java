@@ -1,0 +1,19 @@
+# Build outputs and IDE configurations
+out/
+.idea/
+*.iml
+*.class
+
+# Block all binary media formats from git tracking
+*.png
+*.jpg
+*.jpeg
+*.wav
+*.mp3
+*.gif
+
+# Temporary or backup files
+*~
+*.bak
+*.log
+*.tmp
