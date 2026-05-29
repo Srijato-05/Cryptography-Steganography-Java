@@ -123,10 +123,18 @@ public class App {
 
         executeTask(() -> {
             switch (type) {
-                case "image" -> controller.embedInImage(src, dest, msg, pass, useDecoy, useScatter, algo);
-                case "audio" -> controller.embedInAudio(src, dest, msg, pass, useDecoy, useScatter, algo);
-                case "video" -> controller.embedInVideo(src, dest, msg, pass, algo);
-                case "text" -> controller.embedInText(src, dest, msg, pass, useDecoy, algo);
+                case "image":
+                    controller.embedInImage(src, dest, msg, pass, useDecoy, useScatter, algo);
+                    break;
+                case "audio":
+                    controller.embedInAudio(src, dest, msg, pass, useDecoy, useScatter, algo);
+                    break;
+                case "video":
+                    controller.embedInVideo(src, dest, msg, pass, algo);
+                    break;
+                case "text":
+                    controller.embedInText(src, dest, msg, pass, useDecoy, algo);
+                    break;
             }
         });
     }
@@ -142,10 +150,18 @@ public class App {
             String pass = view.getPassword();
 
             switch (type) {
-                case "image" -> result = controller.extractFromImage(src, pass);
-                case "audio" -> result = controller.extractFromAudio(src, pass);
-                case "video" -> result = controller.extractFromVideo(src, pass);
-                case "text" -> result = controller.extractFromText(src, pass);
+                case "image":
+                    result = controller.extractFromImage(src, pass);
+                    break;
+                case "audio":
+                    result = controller.extractFromAudio(src, pass);
+                    break;
+                case "video":
+                    result = controller.extractFromVideo(src, pass);
+                    break;
+                case "text":
+                    result = controller.extractFromText(src, pass);
+                    break;
             }
 
             if (result != null) {
