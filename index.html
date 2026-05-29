@@ -10,8 +10,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     
-    <!-- CheerpJ WebAssembly Engine Loader -->
-    <script src="https://cjrtnc.leaningtech.com/3.0/loader.js"></script>
+    <!-- CheerpJ 2.1 WebAssembly Engine Loader (Bypasses Service Worker security policies) -->
+    <script src="https://cjrtnc.leaningtech.com/2.1/loader.js"></script>
     
     <style>
         :root {
@@ -92,6 +92,7 @@
             text-transform: uppercase;
             background: linear-gradient(90deg, var(--neon-cyan), var(--neon-purple));
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -345,6 +346,7 @@
             text-transform: uppercase;
             background: linear-gradient(90deg, var(--neon-cyan), #fff);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 12px;
         }
@@ -544,6 +546,10 @@
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
 
+        // Dynamic path resolution for CheerpJ virtual file system mapping (/app/...)
+        const basePath = window.location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '');
+        const jarPath = `/app${basePath}/Project-Hermes.jar`;
+
         // Telemetry logger to console panel
         function log(message, type = 'info') {
             const timestamp = new Date().toISOString().substr(11, 8);
@@ -554,12 +560,14 @@
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
 
-        // Simulating progressive initialization messages
+        // Bootstrapping sequence
         log('Starting bootstrap sequence...', 'info');
+        log(`Resolved host path: ${window.location.origin}${basePath}`);
+        log(`Mapped virtual jar path: ${jarPath}`);
         
         // Step 1: Initialize CheerpJ Engine
         setTimeout(() => {
-            log('Requesting WebAssembly permissions...', 'info');
+            log('Loading WebAssembly runtime libraries...', 'info');
             progress.style.width = '20%';
             loaderMsg.innerText = 'Initializing WebAssembly engine context...';
         }, 800);
@@ -571,7 +579,7 @@
             
             // Step 2: Bind the graphical interface container
             setTimeout(() => {
-                log('Binding Canvas context...', 'info');
+                log('Binding canvas display grid...', 'info');
                 cheerpjCreateDisplay(1350, 950, document.getElementById('cheerpj-container'));
                 progress.style.width = '75%';
                 loaderMsg.innerText = 'Compiling security suites...';
@@ -579,9 +587,8 @@
 
             // Step 3: Run the jar file
             setTimeout(() => {
-                log('Executing Project-Hermes.jar runtime...', 'info');
-                // Use a relative path so it is resilient to different hosting folders
-                cheerpjRunJar("./Project-Hermes.jar").then(function() {
+                log(`Mounting virtual jar file: ${jarPath}...`, 'info');
+                cheerpjRunJar(jarPath).then(function() {
                     log('Hermes Core online. UI Render complete.', 'info');
                     progress.style.width = '100%';
                     loaderMsg.innerText = 'Boot sequence completed.';
