@@ -16,7 +16,7 @@ public class TextSteganography {
     private static final char ONE = '\u200C';
 
     public void embedMessage(File sourceFile, File destFile, String base64Message) throws Exception {
-        String coverText = Files.readString(sourceFile.toPath(), StandardCharsets.UTF_8);
+        String coverText = new String(Files.readAllBytes(sourceFile.toPath()), StandardCharsets.UTF_8);
 
         StringBuilder hidden = new StringBuilder();
         // Convert Base64 payload characters to bit representations
@@ -34,11 +34,11 @@ public class TextSteganography {
         // Append the hidden string at the end of the cover text
         String stegoText = coverText + hidden.toString();
 
-        Files.writeString(destFile.toPath(), stegoText, StandardCharsets.UTF_8);
+        Files.write(destFile.toPath(), stegoText.getBytes(StandardCharsets.UTF_8));
     }
 
     public String extractMessage(File sourceFile) throws Exception {
-        String stegoText = Files.readString(sourceFile.toPath(), StandardCharsets.UTF_8);
+        String stegoText = new String(Files.readAllBytes(sourceFile.toPath()), StandardCharsets.UTF_8);
 
         StringBuilder bits = new StringBuilder();
         for (char c : stegoText.toCharArray()) {

@@ -99,8 +99,15 @@ public class VideoSteganography {
         if (file.length() > Integer.MAX_VALUE) {
             throw new IOException("File too large (Max 2GB supported in this version).");
         }
+        byte[] data = new byte[(int) file.length()];
         try (FileInputStream fis = new FileInputStream(file)) {
-            return fis.readAllBytes();
+            int bytesRead = 0;
+            while (bytesRead < data.length) {
+                int read = fis.read(data, bytesRead, data.length - bytesRead);
+                if (read == -1) break;
+                bytesRead += read;
+            }
         }
+        return data;
     }
 }
